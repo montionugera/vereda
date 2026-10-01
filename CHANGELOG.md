@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-01
+
+### Changed
+
+- An `AbortError` that none of Vereda's own signals caused (for example, one thrown by middleware's own abort logic) is now classified as a `NetworkError`. Previously any error named `AbortError` was reported as a `TimeoutError`, even when no Vereda timeout had fired.
+
+### Fixed
+
+- **Idle-partition cleanup could double a partition's concurrency cap.** After 60s without a new request, a partition's bulkhead was discarded even if requests were still running, queued, or waiting to retry, so the next request got a fresh bulkhead and the old and new ones each admitted up to `concurrency` requests. A partition is now kept while any request still uses it.
+- **Idle-partition cleanup silently reset open circuit breakers.** An open breaker idle for 60s was discarded and replaced by a closed one, so a `resetTimeoutMs` longer than 60s never took effect. An open breaker is now kept until its `resetTimeoutMs` has elapsed. After that, if the partition stays idle, it is discarded so breakers for hosts that are never contacted again don't accumulate.
+- A timeout during middleware that wraps or rethrows the abort error was reported as a `NetworkError` instead of a `TimeoutError`. Timeouts are now detected from the attempt's own timeout signal, not the shape of the thrown error.
+- Backoff sleeps between retries and per-attempt (`attemptMs`) timers kept the Node.js process alive. They are now `unref()`ed, like the `totalMs` deadline timer, as `docs/operations.md` already described.
+
 ## [1.0.0] - 2026-09-25
 
 Vereda's first release published to npm, as `@vereda/http` (npm rejected the unscoped name `vereda` as too similar to an existing package). Before this, there was no published
@@ -148,5 +161,6 @@ of this project before today.
 - The circuit breaker counted an attempt that never reached the host (a body factory that threw before the request was dispatched) as a success — it reset the consecutive-failure count, counted as a non-failure in the rolling window, and could close a half-open trial, all without the host ever being contacted. Such an outcome is now ignored entirely: no change to the failure count, the rolling window, or open/closed state, and in half-open it frees the trial slot without deciding it.
 - A user-supplied circuit-breaker `isFailure` was called twice for every attempt it classified as a failure — once to classify the outcome, then again while recording it — so a classifier that counts, logs, or samples saw each real failure twice. It's now called exactly once per reported outcome.
 
-[Unreleased]: https://github.com/riosgabriel/vereda/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/riosgabriel/vereda/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/riosgabriel/vereda/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/riosgabriel/vereda/releases/tag/v1.0.0
