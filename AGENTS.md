@@ -69,6 +69,17 @@ Request flow: `client.get()` returns a `Ticket` synchronously → first attempt 
 
 → To onboard a contributor using this mental model, see **Onboarding contributors (for LLMs)** below and `ONBOARDING.md`.
 
+## Reviewing changes
+
+Checks that found Vereda's real bugs (B1–B17 in the 1.0 review). Apply them to any diff touching `src/core/client.ts`, `src/queue/` or `src/ticket/`, on top of the behavioral invariants above:
+
+- **One terminal event, matching the result.** On every path (success, failure, cancel, deadline, `close()`, a throw inside the attempt), exactly one of `success`/`failure`/`cancelled` fires and agrees with the ticket's `Result` (B7).
+- **Every exit releases what it took.** Bulkhead/semaphore slots, circuit-breaker half-open slots, timers, abort listeners and an unconsumed `response.body` are released on cancel/deadline/timeout paths too, not just on success (B1, B9, B13).
+- **User callbacks can't change outcomes.** A throwing `ticket.on(...)`, `client.on(...)` listener or `MetricsSink` must not turn a success into a failure or leave `toPromise()` unsettled (B2, B3). Route them through `emit()`/`reportCallbackError`.
+- **URLs are redacted before leaving the client.** Anything that reaches events, logs or error messages goes through `logUrl()`/`redactUrl()` (B5).
+- **Sample state where it changes.** A gauge or snapshot read at emit time sees different values depending on whether the call site ran `cleanup()` first (B15); report it where the state mutates.
+- **Prove a bug before fixing it.** Write the regression test first and see it fail on `main`. Watch for existing tests that encode the buggy behavior (B16, B15).
+
 ## Tests
 
 - Self-contained: integration tests spin up `node:http` servers on `127.0.0.1` ephemeral ports. No network, services, or env vars needed.
