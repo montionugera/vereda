@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The `vereda.in_flight` gauge could stay at `1` after the client went idle. It was read when the terminal event was emitted, and requests that finished on the first attempt (success, non-retryable failure, cancellation, configuration error) emitted before leaving the in-flight set, while retried requests emitted after it. The gauge is now reported when a ticket leaves the in-flight set, so it returns to `0` on every path (#134).
+
 ## [1.0.1] - 2026-10-01
 
 ### Fixed
